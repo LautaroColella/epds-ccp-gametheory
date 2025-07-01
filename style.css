@@ -1,0 +1,29 @@
+#game {
+	max-height: 70vh;
+	overflow-y: auto;
+}
+
+.btnAddPlayer {
+	background: none;
+	background-color: rgb(230, 255, 230);
+	border-radius: 10px;
+	outline: inherit;
+	border: 1px solid darkgreen;
+	height: 100px;
+	width: 100px;
+	min-width: 99px;
+}
+
+.btnAddPlayer:hover {
+	background-color: rgb(175, 255, 175);
+}
+
+.btnAddPlayer span {
+	display: block;
+	padding: 5px;
+}
+
+.btnAddPlayer i {
+	color: darkgreen;
+	margin: 5px;
+}

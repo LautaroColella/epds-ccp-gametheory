@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pieza EPDS</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body
+    class="d-flex justify-content-center align-items-start vh-100 overflow-hidden mt-4"
+  >
+    <!-- nav goes here -->
+
+    <div class="w-100" style="max-width: 1200px; min-width: 700px">
+      <section id="game_mode">
+        <ul
+          class="d-flex justify-content-between border rounded-top border-bottom-0 mb-0 ps-0 pb-5"
+        >
+          <li class="list-unstyled">
+            <button
+              class="btn btn-info btn-lg"
+              onclick="selectMode('cooperativo')"
+            >
+              Cooperativo
+            </button>
+          </li>
+          <li class="list-unstyled">
+            <button
+              class="btn btn-danger btn-lg"
+              onclick="selectMode('competitivo')"
+            >
+              Competitivo
+            </button>
+          </li>
+          <li class="list-unstyled">
+            <button
+              class="btn btn-warning btn-lg"
+              onclick="selectMode('evolutivo')"
+            >
+              Evolutivo
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <section
+        id="game"
+        class="border rounded-bottom border-top-0 position-relative"
+      ></section>
+
+      <div
+        class="modal fade"
+        id="coopSettingsModal"
+        tabindex="-1"
+        aria-labelledby="configCoop"
+        aria-hidden="true"
+      >
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="configCoop">
+                Configuración del modo cooperativo
+              </h5>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+            <div class="modal-body">
+              <form>
+                <div class="mb-3">
+                  <label for="num_players" class="form-label">
+                    Número de jugadores
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="La cantidad de jugadores afecta la eficiencia de colección. Más jugadores, más intercambio posible."
+                    ></i>
+                  </label>
+                  <input
+                    type="number"
+                    id="num_players"
+                    class="form-control"
+                    min="2"
+                    max="100"
+                    value="5"
+                    required
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label for="cards_total" class="form-label">
+                    Número total de figuritas
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="Determina el tamaño del espacio de colección."
+                    ></i>
+                  </label>
+                  <input
+                    type="number"
+                    id="total_cards"
+                    class="form-control"
+                    value="200"
+                    required
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label for="cards_in_packet" class="form-label">
+                    Figuritas por sobre
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="A más figuritas por sobre, menos sobres necesarios."
+                    ></i>
+                  </label>
+                  <input
+                    type="number"
+                    id="cards_in_packet"
+                    class="form-control"
+                    value="5"
+                    required
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label for="cards_distribution" class="form-label">
+                    Distribución de figuritas
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="Sesgada simula rarezas y hace más valiosa la cooperación."
+                    ></i>
+                    <a href="#faq-distribucion" target="_blank"
+                      ><i class="fas fa-external-link-alt"></i
+                    ></a>
+                  </label>
+                  <select id="cards_distribution" class="form-select">
+                    <option value="uniforme">Uniforme</option>
+                    <option value="sesgada">Sesgada</option>
+                  </select>
+                </div>
+
+                <div class="mb-3">
+                  <label for="cards_asignation" class="form-label">
+                    Estrategia de asignación
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="Define cómo se distribuyen las figuritas útiles desde la bolsa común."
+                    ></i>
+                    <a href="#faq-estrategia" target="_blank"
+                      ><i class="fas fa-external-link-alt"></i
+                    ></a>
+                  </label>
+                  <select id="cards_asignation" class="form-select">
+                    <option value="optima">Óptima</option>
+                    <option value="turno">Por turno</option>
+                    <option value="aleatoria">Aleatoria</option>
+                    <option value="equitativa">Equitativa</option>
+                  </select>
+                </div>
+
+                <div class="form-check form-switch mb-3">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="cards_repeated"
+                    checked
+                  />
+                  <label class="form-check-label" for="cards_repeated">
+                    Reutilización de repetidas
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="Guarda las repetidas para futuras rondas."
+                    ></i>
+                  </label>
+                </div>
+
+                <div class="form-check form-switch mb-3">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="auto_simulation"
+                  />
+                  <label class="form-check-label" for="auto_simulation">
+                    Simulación automática
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="Avanza automáticamente los turnos."
+                    ></i>
+                  </label>
+                </div>
+
+                <div class="mb-3 d-none" id="auto_simulation_speed_container">
+                  <label for="auto_simulation_ms" class="form-label">
+                    Velocidad de simulación (ms)
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="Tiempo entre turnos en milisegundos."
+                    ></i>
+                  </label>
+                  <input
+                    type="number"
+                    id="auto_simulation_ms"
+                    class="form-control"
+                    value="500"
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label for="game_ends" class="form-label">
+                    Criterio de finalización
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="Controla cuándo termina la simulación."
+                    ></i>
+                  </label>
+                  <select id="game_ends" class="form-select">
+                    <option value="llena_album">Todos llenan su album</option>
+                    <option value="limite_sobres">
+                      Se llega al límite de sobres
+                    </option>
+                  </select>
+                </div>
+
+                <div class="mb-3 d-none" id="limit_packets_container">
+                  <label for="limit_packets" class="form-label">
+                    Límite de sobres
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="La simulación se detendrá cuando se alcance este número de sobres."
+                    ></i>
+                  </label>
+                  <input
+                    type="number"
+                    id="limit_packets"
+                    class="form-control"
+                    value="1000"
+                    min="1"
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label for="simulation_seed" class="form-label">
+                    Semilla
+                    <i
+                      class="fas fa-question-circle text-muted ms-1"
+                      data-bs-toggle="tooltip"
+                      title="Usar para repetir la simulación. El 0 es semilla aleatoria"
+                    ></i>
+                  </label>
+                  <input
+                    type="number"
+                    id="simulation_seed"
+                    class="form-control"
+                    value="0"
+                    min="0"
+                    required
+                  />
+                </div>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-bs-dismiss="modal"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                class="btn btn-primary"
+                id="saveCoopSettings"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section id="graphs">
+        <h3>Los graficos van aca</h3>
+      </section>
+
+      <section id="faq">
+        <h3>FAQ va aca</h3>
+      </section>
+    </div>
+  </body>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="./script.js"></script>
+</html>
+
+<!--
+
+
+
+Ideas para el 2do modo de juego:
+Altruista
+Egoista
+Reciproco
+Saboteador
+-->
