@@ -27,7 +27,7 @@ function loadCoop() {
 
   const playersCount = document.createElement("h3");
   playersCount.classList.add("text-center");
-  playersCount.textContent = "Jugadores: 0";
+  playersCount.textContent = "Jugadores: 2";
   playersCount.id = "playerCount";
   gameSection.appendChild(playersCount);
 
@@ -50,6 +50,8 @@ function loadCoop() {
   newPlayerBtn.innerHTML = `<span><i class="fas fa-plus fa-2x"></i><i class="fas fa-user fa-2x"></i></span>`;
   playersContainer.appendChild(newPlayerBtn);
 
+  addPlayer(2);
+
   const settingsBtn = document.createElement("button");
   settingsBtn.classList.add(
     "btn",
@@ -63,6 +65,8 @@ function loadCoop() {
   settingsBtn.setAttribute("data-bs-toggle", "modal");
   settingsBtn.setAttribute("data-bs-target", "#coopSettingsModal");
   settingsBtn.style.zIndex = "2";
+  settingsBtn.addEventListener("click", () => setLastCoopSettings());
+
   gameSection.appendChild(settingsBtn);
   resetCoopSettings();
   document.getElementById("saveCoopSettings").addEventListener("click", () => {
@@ -88,7 +92,7 @@ function loadCoop() {
 }
 
 function resetCoopSettings() {
-  document.getElementById("num_players").value = 5;
+  document.getElementById("num_players").value = 2;
   document.getElementById("total_cards").value = 200;
   document.getElementById("cards_in_packet").value = 5;
   document.getElementById("cards_distribution").value = "uniforme";
@@ -204,32 +208,106 @@ function updateCoopSettings() {
     simulationSeed: seedVal === 0 ? null : seedVal,
   };
 
+  const playersContainer = document.getElementById("players");
+  playersContainer.innerHTML = "";
+
+  const newPlayerBtn = document.createElement("button");
+  newPlayerBtn.classList.add("btnAddPlayer");
+  newPlayerBtn.addEventListener("click", () => addPlayer());
+  newPlayerBtn.innerHTML = `<span><i class="fas fa-plus fa-2x"></i><i class="fas fa-user fa-2x"></i></span>`;
+  playersContainer.appendChild(newPlayerBtn);
+
+  addPlayer(coopConfig.numPlayers);
+
   return true;
 }
 
-function addPlayer() {
+function setLastCoopSettings() {
+  if (!coopConfig) return;
+
+  document.getElementById("num_players").value = coopConfig.numPlayers;
+  document.getElementById("total_cards").value = coopConfig.totalCards;
+  document.getElementById("cards_in_packet").value = coopConfig.cardsInPacket;
+  document.getElementById("cards_distribution").value =
+    coopConfig.cardsDistribution;
+  document.getElementById("cards_asignation").value =
+    coopConfig.cardsAsignation;
+  document.getElementById("cards_repeated").checked = coopConfig.cardsRepeated;
+  document.getElementById("auto_simulation").checked =
+    coopConfig.autoSimulation;
+  document.getElementById("auto_simulation_ms").value =
+    coopConfig.autoSimulationMs;
+  document.getElementById("game_ends").value = coopConfig.gameEnds;
+  document.getElementById("limit_packets").value = coopConfig.limitPackets;
+  document.getElementById("simulation_seed").value =
+    coopConfig.simulationSeed ?? 0;
+
+  document
+    .getElementById("auto_simulation_speed_container")
+    .classList.toggle("d-none", !coopConfig.autoSimulation);
+  document
+    .getElementById("limit_packets_container")
+    .classList.toggle("d-none", coopConfig.gameEnds !== "limite_sobres");
+}
+
+function addPlayer(quantity = 1) {
   const playersContainer = document.getElementById("players");
-  const newPlayerBtn = document.createElement("button");
 
-  newPlayerBtn.classList.add("btnAddPlayer");
-  newPlayerBtn.addEventListener("click", () => addPlayer());
+  for (let i = 0; i < quantity; i++) {
+    const usedIds = Array.from(
+      playersContainer.querySelectorAll(".coopPlayer")
+    ).map((el) => parseInt(el.dataset.playerId, 10));
 
-  newPlayerBtn.innerHTML = `<span><i class="fas fa-plus fa-2x"></i><i class="fas fa-user fa-2x"></i></span>`;
+    let newId = 1;
+    while (usedIds.includes(newId)) {
+      newId++;
+    }
 
-  playersContainer.insertBefore(
-    newPlayerBtn,
-    playersContainer.lastElementChild
-  );
+    const newPlayer = document.createElement("div");
+    newPlayer.classList.add("coopPlayer");
+    newPlayer.dataset.playerId = newId;
+    newPlayer.innerHTML = `
+    <span>
+      <button class="btn btn-sm editPlayer"><i class="fas fa-edit"></i></button>
+      <button class="btn btn-sm delPlayer"><i class="fas fa-ban"></i></button>
+    </span>
+    <i class="fas fa-user fa-2x"></i>Bot ${newId}
+    `;
+    playersContainer.appendChild(newPlayer);
+
+    const editBtn = newPlayer.querySelector(".editPlayer");
+    const deleteBtn = newPlayer.querySelector(".delPlayer");
+    editBtn.addEventListener("click", () => editCoopPlayer(newId));
+    deleteBtn.addEventListener("click", () => deleteCoopPlayer(newId));
+  }
 
   updatePlayerCount();
+}
+
+function editCoopPlayer(id) {
+  console.log(id);
+}
+
+function deleteCoopPlayer(id) {
+  const playerElement = document.querySelector(
+    `.coopPlayer[data-player-id="${id}"]`
+  );
+  if (playerElement) {
+    playerElement.remove();
+    updatePlayerCount();
+  }
 }
 
 function updatePlayerCount() {
   const playersContainer = document.getElementById("players");
   const count = playersContainer.childElementCount - 1;
   const countDisplay = document.getElementById("playerCount");
+  const numPlayersInput = document.getElementById("num_players");
 
   if (countDisplay) countDisplay.textContent = `Jugadores: ${count}`;
+  if (numPlayersInput) numPlayersInput.value = count;
+
+  coopConfig.numPlayers = count;
 }
 
 window.addEventListener("DOMContentLoaded", () => {

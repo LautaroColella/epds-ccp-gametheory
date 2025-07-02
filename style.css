@@ -27,3 +27,51 @@
 	color: darkgreen;
 	margin: 5px;
 }
+
+.coopPlayer {
+	background: none;
+	background-color: rgb(230, 242, 255);
+	border-radius: 5px;
+	border: 1px solid darkblue;
+	height: 100px;
+	width: 100px;
+	min-width: 99px;
+
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+}
+
+.coopPlayer span {
+	position: absolute;
+	top: 0;
+	width: 100%;
+	display: flex;
+	flex-direction: row;
+	justify-content: space-between;
+}
+
+.coopPlayer span button {
+	background-color: none;
+	padding: 0 5px;
+	border: none;
+}
+
+.coopPlayer span button:hover i {
+	font-size: 18px;
+}
+
+.coopPlayer span button:nth-child(1) {
+	color: #ffc107;
+}
+
+.coopPlayer span button:nth-child(2) {
+	color: red;
+}
+
+.coopPlayer>i {
+	color: rgb(0, 134, 179);
+	margin-bottom: 5px;
+}
