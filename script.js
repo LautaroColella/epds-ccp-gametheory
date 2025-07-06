@@ -66,6 +66,7 @@ function loadCoop() {
   settingsBtn.setAttribute("data-bs-toggle", "modal");
   settingsBtn.setAttribute("data-bs-target", "#coopSettingsModal");
   settingsBtn.style.zIndex = "2";
+  settingsBtn.id = "coopSettingsBtn";
   settingsBtn.addEventListener("click", () => setLastCoopSettings());
 
   gameSection.appendChild(settingsBtn);
@@ -81,6 +82,7 @@ function loadCoop() {
   runSimDiv.style.zIndex = "2";
   runSimDiv.style.left = "100%";
   runSimDiv.style.display = "inline-block";
+  runSimDiv.id = "runSimDiv";
 
   const simCountInput = document.createElement("input");
   simCountInput.type = "number";
@@ -100,34 +102,11 @@ function loadCoop() {
   `;
   startBtn.addEventListener("click", () => {
     if (!updateCoopSettings()) return;
-    if (coopConfig.simulationCount > 1) {
-      runCoopSimulation();
-    } else {
-      initCoopSimulation();
-
-      if (!coopConfig.autoSimulation) {
-        const avanzarBtn = document.createElement("button");
-        avanzarBtn.classList.add("btn", "btn-primary", "m-2");
-        avanzarBtn.innerHTML = `<i class="fas fa-forward"></i> Avanzar ronda`;
-        avanzarBtn.addEventListener("click", () => avanzarRondaCoop());
-        gameSection.appendChild(avanzarBtn);
-      } else {
-        const interval = setInterval(() => {
-          avanzarRondaCoop();
-          if (coopState.finalizado) clearInterval(interval);
-        }, coopConfig.autoSimulationMs);
-      }
-    }
+    runCoopSimulation();
   });
   runSimDiv.appendChild(simCountInput);
   runSimDiv.appendChild(startBtn);
   gameSection.appendChild(runSimDiv);
-
-  const avanzarBtn = document.createElement("button");
-  avanzarBtn.classList.add("btn", "btn-primary", "m-2");
-  avanzarBtn.innerHTML = `<i class="fas fa-forward"></i> Avanzar ronda`;
-  avanzarBtn.addEventListener("click", () => avanzarRondaCoop());
-  gameSection.appendChild(avanzarBtn);
 
   resetCoopSettings();
 }
@@ -138,7 +117,6 @@ function resetCoopSettings() {
   document.getElementById("cards_in_packet").value = 5;
   document.getElementById("cards_distribution").value = "uniforme";
   document.getElementById("cards_asignation").value = "optima";
-  document.getElementById("cards_repeated").checked = true;
   document.getElementById("auto_simulation").checked = false;
   document.getElementById("auto_simulation_ms").value = 500;
   document.getElementById("game_ends").value = "llena_album";
@@ -178,7 +156,6 @@ function updateCoopSettings() {
   );
   const cardsDistribution = document.getElementById("cards_distribution").value;
   const cardsAsignation = document.getElementById("cards_asignation").value;
-  const cardsRepeated = document.getElementById("cards_repeated").checked;
   const autoSimulation = document.getElementById("auto_simulation").checked;
   const autoSimulationMs = parseInt(
     document.getElementById("auto_simulation_ms").value,
@@ -245,7 +222,6 @@ function updateCoopSettings() {
     cardsInPacket,
     cardsDistribution,
     cardsAsignation,
-    cardsRepeated,
     autoSimulation,
     autoSimulationMs: autoSimulation ? autoSimulationMs : null,
     gameEnds,
@@ -281,7 +257,6 @@ function setLastCoopSettings() {
     coopConfig.cardsDistribution;
   document.getElementById("cards_asignation").value =
     coopConfig.cardsAsignation;
-  document.getElementById("cards_repeated").checked = coopConfig.cardsRepeated;
   document.getElementById("auto_simulation").checked =
     coopConfig.autoSimulation;
   document.getElementById("auto_simulation_ms").value =
@@ -364,9 +339,7 @@ function runCoopSimulation() {
     numPlayers,
     totalCards,
     cardsInPacket,
-    cardsDistribution,
     cardsAsignation,
-    cardsRepeated,
     gameEnds,
     limitPackets,
     simulationSeed,
@@ -375,8 +348,10 @@ function runCoopSimulation() {
 
   const t0 = performance.now();
 
-  let packetsResults = [];
-  let completionStats = [];
+  coopState = {
+    simulations: [],
+    finalizado: false,
+  };
 
   for (let sim = 0; sim < simulationCount; sim++) {
     if (simulationSeed !== null) {
@@ -384,180 +359,282 @@ function runCoopSimulation() {
     }
 
     const albums = Array.from({ length: numPlayers }, () => new Set());
-    let packetsOpened = 0;
-    let allCompleted = false;
+    const historialRondas = [];
+    let sobresTotales = 0;
+    let finalizado = false;
 
-    while (!allCompleted) {
-      packetsOpened++;
-      let packet = [];
-      for (let i = 0; i < cardsInPacket; i++) {
-        packet.push(Math.floor(Math.random() * totalCards));
-      }
+    while (!finalizado) {
+      const ronda = {
+        sobres: [],
+        asignaciones: [],
+        usadasDelPool: [],
+        poolFinal: [],
+        estadoAlbums: [],
+      };
 
-      packet.forEach((card) => {
-        let assigned = false;
+      const pool = [];
 
-        if (cardsAsignation === "optima") {
-          for (let i = 0; i < numPlayers; i++) {
-            if (!albums[i].has(card)) {
-              albums[i].add(card);
-              assigned = true;
-              break;
-            }
+      for (let j = 0; j < numPlayers; j++) {
+        const sobre = [];
+        const asignadas = [];
+
+        for (let k = 0; k < cardsInPacket; k++) {
+          const figu = Math.floor(Math.random() * totalCards);
+          sobre.push(figu);
+
+          if (!albums[j].has(figu)) {
+            albums[j].add(figu);
+            asignadas.push(figu);
+          } else {
+            pool.push(figu);
           }
         }
 
-        if (!assigned && cardsRepeated) {
-          const randPlayer = Math.floor(Math.random() * numPlayers);
-          albums[randPlayer].add(card);
-        }
-      });
+        ronda.sobres.push(sobre);
+        ronda.asignaciones.push(asignadas);
+        sobresTotales++;
+      }
 
-      if (gameEnds === "llena_album") {
-        allCompleted = albums.every((a) => a.size >= totalCards);
-      } else if (gameEnds === "limite_sobres") {
-        if (packetsOpened >= limitPackets) {
-          allCompleted = true;
+      const poolUsadas = Array.from({ length: numPlayers }, () => []);
+
+      for (let i = 0; i < pool.length; i++) {
+        const figu = pool[i];
+        let usada = false;
+
+        for (let j = 0; j < numPlayers; j++) {
+          if (!albums[j].has(figu)) {
+            albums[j].add(figu);
+            poolUsadas[j].push(figu);
+            usada = true;
+            break;
+          }
+        }
+
+        if (!usada) {
+          ronda.poolFinal.push(figu);
         }
       }
+
+      ronda.usadasDelPool = poolUsadas;
+      ronda.estadoAlbums = albums.map((set) => new Set(set));
+      historialRondas.push(ronda);
+
+      const todosCompletos = albums.every((a) => a.size === totalCards);
+      const limite =
+        gameEnds === "limite_sobres" && sobresTotales >= limitPackets;
+
+      if (todosCompletos || limite) finalizado = true;
     }
 
-    packetsResults.push(packetsOpened);
-    completionStats.push(albums.map((a) => a.size));
+    coopState.simulations.push({
+      rondas: historialRondas,
+      sobresTotales,
+      final: albums.map((set) => new Set(set)),
+    });
   }
 
   const t1 = performance.now();
-  const elapsed = (t1 - t0).toFixed(2);
+  console.log(
+    `✅ ${simulationCount} simulaciones completadas en ${(t1 - t0).toFixed(
+      2
+    )} ms.`
+  );
 
-  const avgPackets = (
-    packetsResults.reduce((a, b) => a + b, 0) / simulationCount
-  ).toFixed(2);
-  const minPackets = Math.min(...packetsResults);
-  const maxPackets = Math.max(...packetsResults);
+  endOfCoopSimulation(coopState);
+}
 
-  console.log(`Simulaciones completadas: ${simulationCount}`);
-  console.log(`Promedio de sobres abiertos: ${avgPackets}`);
-  console.log(`Mínimo: ${minPackets} | Máximo: ${maxPackets}`);
+function endOfCoopSimulation(coopState) {
+  const gameSection = document.getElementById("game");
+  document.getElementById("runSimDiv").style.display = "none";
+  document.getElementById("coopSettingsBtn").style.display = "none";
 
-  for (let i = 0; i < numPlayers; i++) {
-    const playerCompletion = completionStats.map((stat) => stat[i]);
-    const avgCompletion = (
-      playerCompletion.reduce((a, b) => a + b, 0) / simulationCount
-    ).toFixed(2);
-    console.log(
-      `Jugador ${i + 1} - Promedio de figuritas: ${avgCompletion}/${totalCards}`
+  const coopBottomButtons = document.createElement("div");
+  const roundDiv = document.createElement("div");
+  const roundBackDiv = document.createElement("div");
+  const roundMiddleDiv = document.createElement("div");
+  const roundNextDiv = document.createElement("div");
+  const simDiv = document.createElement("div");
+  const simBackDiv = document.createElement("div");
+  const simMiddleDiv = document.createElement("div");
+  const simNextDiv = document.createElement("div");
+
+  coopBottomButtons.classList.add(
+    "position-sticky",
+    "sticky-bottom",
+    "d-flex",
+    "flex-row",
+    "justify-content-around",
+    "align-items-center"
+  );
+  coopBottomButtons.style.zIndex = "2";
+
+  roundDiv.classList.add("d-flex", "flex-row");
+  simDiv.classList.add("d-flex", "flex-row");
+  roundMiddleDiv.classList.add("ms-3", "me-3");
+  simMiddleDiv.classList.add("ms-3", "me-3");
+
+  const roundBackbackBtn = document.createElement("button");
+  roundBackbackBtn.classList.add("btn", "btn-success", "me-1");
+  roundBackbackBtn.innerHTML = `
+  <i class="fas fa-backward-fast"></i>
+  `;
+  roundBackbackBtn.addEventListener("click", () => {
+    renderRound(coopCurrentSimulation, 0);
+  });
+
+  const roundBackBtn = document.createElement("button");
+  roundBackBtn.classList.add("btn", "btn-success");
+  roundBackBtn.innerHTML = `
+  <i class="fas fa-backward-step"></i>
+  `;
+  roundBackBtn.addEventListener("click", () => {
+    renderRound(
+      coopCurrentSimulation,
+      coopCurrentRound === 1 ? coopCurrentRound : coopCurrentRound - 1
     );
-  }
-
-  console.log(`Tiempo total de simulación: ${elapsed} ms`);
-}
-
-function initCoopSimulation() {
-  const { numPlayers, totalCards, simulationSeed } = coopConfig;
-
-  if (simulationSeed !== null) {
-    Math.seedrandom(simulationSeed);
-  }
-
-  coopState = {
-    ronda: 0,
-    sobresTotales: 0,
-    albums: Array.from({ length: numPlayers }, () => new Set()),
-    historialRondas: [],
-    finalizado: false,
-  };
-}
-
-function avanzarRondaCoop() {
-  if (!coopState || coopState.finalizado) return;
-
-  const {
-    numPlayers,
-    totalCards,
-    cardsInPacket,
-    cardsAsignation,
-    cardsRepeated,
-    gameEnds,
-    limitPackets,
-  } = coopConfig;
-
-  const rondaActual = {
-    sobres: [],
-    asignaciones: [],
-  };
-
-  coopState.ronda++;
-
-  for (let j = 0; j < numPlayers; j++) {
-    const sobre = [];
-    for (let i = 0; i < cardsInPacket; i++) {
-      const card = Math.floor(Math.random() * totalCards);
-      sobre.push(card);
-    }
-    rondaActual.sobres.push(sobre);
-    coopState.sobresTotales++;
-  }
-
-  const pool = rondaActual.sobres.flat();
-
-  const asignaciones = Array.from({ length: numPlayers }, () => []);
-
-  pool.forEach((figu) => {
-    let asignado = false;
-
-    if (cardsAsignation === "optima") {
-      for (let i = 0; i < numPlayers; i++) {
-        if (!coopState.albums[i].has(figu)) {
-          coopState.albums[i].add(figu);
-          asignaciones[i].push(figu);
-          asignado = true;
-          break;
-        }
-      }
-    }
-
-    if (!asignado && cardsRepeated) {
-      const rand = Math.floor(Math.random() * numPlayers);
-      coopState.albums[rand].add(figu);
-      asignaciones[rand].push(figu);
-    }
   });
 
-  rondaActual.asignaciones = asignaciones;
-  coopState.historialRondas.push(rondaActual);
+  const roundNextnextBtn = document.createElement("button");
+  roundNextnextBtn.classList.add("btn", "btn-success");
+  roundNextnextBtn.innerHTML = `
+  <i class="fas fa-forward-fast"></i>
+  `;
+  roundNextnextBtn.addEventListener("click", () => {
+    renderRound(
+      coopCurrentSimulation,
+      coopState.simulations[/* cambiar por variable coopCurrentSimulation */ 0]
+        .rondas.length
+    );
+  });
 
-  const todosCompletos = coopState.albums.every((a) => a.size === totalCards);
-  const sobresLimite =
-    coopConfig.gameEnds === "limite_sobres" &&
-    coopState.sobresTotales >= limitPackets;
+  const roundNextBtn = document.createElement("button");
+  roundNextBtn.classList.add("btn", "btn-success", "me-1");
+  roundNextBtn.innerHTML = `
+    <i class="fas fa-forward-step"></i>
+    `;
+  roundNextBtn.addEventListener("click", () => {
+    renderRound(
+      coopCurrentSimulation,
+      coopCurrentRound ===
+        coopState
+          .simulations[/* cambiar por variable coopCurrentSimulation */ 0]
+          .rondas.length
+        ? coopCurrentRound
+        : coopCurrentRound + 1
+    );
+  });
 
-  if (todosCompletos || sobresLimite) {
-    coopState.finalizado = true;
-    console.log("Fin de la simulación. Rondas:", coopState.ronda);
-  }
+  const currentRoundText = document.createElement("p");
+  currentRoundText.classList.add("d-inline");
+  currentRoundText.textContent = "Ronda";
 
-  renderRonda(coopState.ronda, rondaActual);
+  const totalRoundsText = document.createElement("p");
+  totalRoundsText.classList.add("d-inline");
+  totalRoundsText.textContent = `de ${coopState.simulations[/* cambiar por variable coopCurrentSimulation */ 0].rondas.length}`;
+
+  const currentRoundInput = document.createElement("input");
+  currentRoundInput.type = "number";
+  currentRoundInput.id = "coop_current_round";
+  currentRoundInput.classList.add("form-control", "d-inline", "ms-1", "me-1");
+  currentRoundInput.value = "1";
+  currentRoundInput.min = "1";
+  currentRoundInput.max = `${coopState.simulations[/* cambiar por variable coopCurrentSimulation */ 0].rondas.length}`;
+  currentRoundInput.required = true;
+  currentRoundInput.style.width = "100px";
+
+  roundBackDiv.appendChild(roundBackbackBtn);
+  roundBackDiv.appendChild(roundBackBtn);
+  roundMiddleDiv.appendChild(currentRoundText);
+  roundMiddleDiv.appendChild(currentRoundInput);
+  roundMiddleDiv.appendChild(totalRoundsText);
+  roundNextDiv.appendChild(roundNextBtn);
+  roundNextDiv.appendChild(roundNextnextBtn);
+  roundDiv.appendChild(roundBackDiv);
+  roundDiv.appendChild(roundMiddleDiv);
+  roundDiv.appendChild(roundNextDiv);
+
+  const simBackbackBtn = document.createElement("button");
+  simBackbackBtn.classList.add("btn", "btn-success", "me-1");
+  simBackbackBtn.innerHTML = `
+  <i class="fas fa-backward-fast"></i>
+  `;
+  simBackbackBtn.addEventListener("click", () => {
+    renderRound(0, 0);
+  });
+
+  const simBackBtn = document.createElement("button");
+  simBackBtn.classList.add("btn", "btn-success");
+  simBackBtn.innerHTML = `
+  <i class="fas fa-backward-step"></i>
+  `;
+  simBackBtn.addEventListener("click", () => {
+    renderRound(
+      coopCurrentSimulation === 1
+        ? coopCurrentSimulation
+        : coopCurrentSimulation - 1,
+      0
+    );
+  });
+
+  const simNextnextBtn = document.createElement("button");
+  simNextnextBtn.classList.add("btn", "btn-success");
+  simNextnextBtn.innerHTML = `
+  <i class="fas fa-forward-fast"></i>
+  `;
+  simNextnextBtn.addEventListener("click", () => {
+    renderRound(coopState.simulations.length, 0);
+  });
+
+  const simNextBtn = document.createElement("button");
+  simNextBtn.classList.add("btn", "btn-success", "me-1");
+  simNextBtn.innerHTML = `
+    <i class="fas fa-forward-step"></i>
+    `;
+  simNextBtn.addEventListener("click", () => {
+    renderRound(
+      coopCurrentSimulation === coopState.simulations.length
+        ? coopCurrentSimulation
+        : coopCurrentSimulation + 1,
+      0
+    );
+  });
+
+  const currentSimText = document.createElement("p");
+  currentSimText.classList.add("d-inline");
+  currentSimText.textContent = "Simulación";
+
+  const totalSimsText = document.createElement("p");
+  totalSimsText.classList.add("d-inline");
+  totalSimsText.textContent = `de ${coopState.simulations.length}`;
+
+  const currentSimInput = document.createElement("input");
+  currentSimInput.type = "number";
+  currentSimInput.id = "coop_current_round";
+  currentSimInput.classList.add("form-control", "d-inline", "ms-1", "me-1");
+  currentSimInput.value = "1";
+  currentSimInput.min = "1";
+  currentSimInput.max = `${coopState.simulations.length}`;
+  currentSimInput.required = true;
+  currentSimInput.style.width = "100px";
+
+  simBackDiv.appendChild(simBackbackBtn);
+  simBackDiv.appendChild(simBackBtn);
+  simMiddleDiv.appendChild(currentSimText);
+  simMiddleDiv.appendChild(currentSimInput);
+  simMiddleDiv.appendChild(totalSimsText);
+  simNextDiv.appendChild(simNextBtn);
+  simNextDiv.appendChild(simNextnextBtn);
+  simDiv.appendChild(simBackDiv);
+  simDiv.appendChild(simMiddleDiv);
+  simDiv.appendChild(simNextDiv);
+
+  coopBottomButtons.appendChild(roundDiv);
+  coopBottomButtons.appendChild(simDiv);
+  gameSection.appendChild(coopBottomButtons);
 }
 
-function renderRonda(numRonda, ronda) {
-  const output = document.getElementById("graphs");
-  const rondaDiv = document.createElement("div");
-  rondaDiv.classList.add("mb-3", "p-3", "border", "rounded");
-
-  rondaDiv.innerHTML = `<h4>📦 Ronda ${numRonda}</h4>`;
-  ronda.sobres.forEach((sobre, idx) => {
-    rondaDiv.innerHTML += `<p><strong>Jugador ${
-      idx + 1
-    }</strong> abrió: [${sobre.join(", ")}]</p>`;
-  });
-
-  ronda.asignaciones.forEach((asig, idx) => {
-    rondaDiv.innerHTML += `<p>→ Se asignó a Jugador ${idx + 1}: [${asig.join(
-      ", "
-    )}]</p>`;
-  });
-
-  output.appendChild(rondaDiv);
+function renderRound(simulation, round) {
+  console.log("Rendering round: ", simulation, round);
 }
 
 window.addEventListener("DOMContentLoaded", () => {
