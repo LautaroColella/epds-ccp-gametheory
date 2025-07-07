@@ -1,6 +1,8 @@
 let coopConfig = {};
 let currentMode = null;
 let coopState = null;
+let coopCurrentSimulation = 1;
+let coopCurrentRound = 1;
 
 const gameModesContent = {
   cooperativo: () => loadCoop(),
@@ -9,11 +11,6 @@ const gameModesContent = {
 };
 
 function selectMode(mode) {
-  if (mode === currentMode) {
-    alert("Ya estas en este modo");
-    return;
-  }
-
   gameModesContent[mode];
 
   const gameSection = document.getElementById("game");
@@ -24,6 +21,7 @@ function selectMode(mode) {
 }
 
 function loadCoop() {
+  coopState = null;
   const gameSection = document.getElementById("game");
 
   const playersCount = document.createElement("h3");
@@ -335,112 +333,66 @@ function updatePlayerCount() {
 }
 
 function runCoopSimulation() {
-  const {
-    numPlayers,
-    totalCards,
-    cardsInPacket,
-    cardsAsignation,
-    gameEnds,
-    limitPackets,
-    simulationSeed,
-    simulationCount = 1,
-  } = coopConfig;
-
-  const t0 = performance.now();
+  const { simulationCount } = coopConfig;
 
   coopState = {
     simulations: [],
-    finalizado: false,
+    ended: false,
   };
 
-  for (let sim = 0; sim < simulationCount; sim++) {
-    if (simulationSeed !== null) {
-      Math.seedrandom(simulationSeed + sim);
-    }
-
-    const albums = Array.from({ length: numPlayers }, () => new Set());
-    const historialRondas = [];
-    let sobresTotales = 0;
-    let finalizado = false;
-
-    while (!finalizado) {
-      const ronda = {
-        sobres: [],
-        asignaciones: [],
-        usadasDelPool: [],
-        poolFinal: [],
-        estadoAlbums: [],
-      };
-
-      const pool = [];
-
-      for (let j = 0; j < numPlayers; j++) {
-        const sobre = [];
-        const asignadas = [];
-
-        for (let k = 0; k < cardsInPacket; k++) {
-          const figu = Math.floor(Math.random() * totalCards);
-          sobre.push(figu);
-
-          if (!albums[j].has(figu)) {
-            albums[j].add(figu);
-            asignadas.push(figu);
-          } else {
-            pool.push(figu);
-          }
-        }
-
-        ronda.sobres.push(sobre);
-        ronda.asignaciones.push(asignadas);
-        sobresTotales++;
-      }
-
-      const poolUsadas = Array.from({ length: numPlayers }, () => []);
-
-      for (let i = 0; i < pool.length; i++) {
-        const figu = pool[i];
-        let usada = false;
-
-        for (let j = 0; j < numPlayers; j++) {
-          if (!albums[j].has(figu)) {
-            albums[j].add(figu);
-            poolUsadas[j].push(figu);
-            usada = true;
-            break;
-          }
-        }
-
-        if (!usada) {
-          ronda.poolFinal.push(figu);
-        }
-      }
-
-      ronda.usadasDelPool = poolUsadas;
-      ronda.estadoAlbums = albums.map((set) => new Set(set));
-      historialRondas.push(ronda);
-
-      const todosCompletos = albums.every((a) => a.size === totalCards);
-      const limite =
-        gameEnds === "limite_sobres" && sobresTotales >= limitPackets;
-
-      if (todosCompletos || limite) finalizado = true;
-    }
-
-    coopState.simulations.push({
-      rondas: historialRondas,
-      sobresTotales,
-      final: albums.map((set) => new Set(set)),
-    });
+  let loadingContainer = document.getElementById("loadingBarContainer");
+  if (!loadingContainer) {
+    loadingContainer = document.createElement("div");
+    loadingContainer.id = "loadingBarContainer";
+    loadingContainer.innerHTML = `
+      <div id="loadingBar" class="progress" style="height: 25px;">
+        <div id="loadingBarFill" class="progress-bar progress-bar-striped progress-bar-animated bg-info"
+             role="progressbar" style="width: 0%">
+          0%
+        </div>
+      </div>
+      <p id="simProgressText" style="text-align: center; margin-top: 5px;">Simulación 0 de ${simulationCount}</p>
+    `;
+    loadingContainer.style.marginTop = "1rem";
+    document.getElementById("game").appendChild(loadingContainer);
   }
 
-  const t1 = performance.now();
-  console.log(
-    `✅ ${simulationCount} simulaciones completadas en ${(t1 - t0).toFixed(
-      2
-    )} ms.`
-  );
+  const loadingBarFill = document.getElementById("loadingBarFill");
+  const simProgressText = document.getElementById("simProgressText");
+  loadingContainer.style.display = "block";
 
-  endOfCoopSimulation(coopState);
+  const worker = new Worker("coopWorker.js");
+
+  worker.postMessage({ config: coopConfig });
+
+  worker.onmessage = function (e) {
+    if (e.data.progress !== undefined) {
+      const percent = Math.round((e.data.progress / simulationCount) * 100);
+      loadingBarFill.style.width = `${percent}%`;
+      loadingBarFill.textContent = `${percent}%`;
+      simProgressText.textContent = `Simulación ${e.data.progress} de ${simulationCount}`;
+    }
+
+    if (e.data.done) {
+      loadingContainer.style.display = "none";
+      coopState.simulations = e.data.simulations.map((sim) => ({
+        ...sim,
+        final: sim.final.map((arr) => new Set(arr)),
+        rondas: sim.rondas.map((ronda) => ({
+          ...ronda,
+          estadoAlbums: ronda.estadoAlbums.map((arr) => new Set(arr)),
+        })),
+      }));
+
+      coopCurrentSimulation = 1;
+      coopCurrentRound = 1;
+
+      endOfCoopSimulation(coopState);
+      renderRound(coopCurrentSimulation, coopCurrentRound);
+
+      worker.terminate();
+    }
+  };
 }
 
 function endOfCoopSimulation(coopState) {
@@ -457,6 +409,28 @@ function endOfCoopSimulation(coopState) {
   const simBackDiv = document.createElement("div");
   const simMiddleDiv = document.createElement("div");
   const simNextDiv = document.createElement("div");
+
+  const currentRoundInput = document.createElement("input");
+  currentRoundInput.type = "number";
+  currentRoundInput.id = "coop_current_round";
+  currentRoundInput.classList.add("form-control", "d-inline", "ms-1", "me-1");
+  currentRoundInput.value = "1";
+  currentRoundInput.min = "1";
+  currentRoundInput.max = `${
+    coopState.simulations[coopCurrentSimulation - 1].rondas.length
+  }`;
+  currentRoundInput.required = true;
+  currentRoundInput.style.width = "100px";
+
+  const currentSimInput = document.createElement("input");
+  currentSimInput.type = "number";
+  currentSimInput.id = "coop_current_simulation";
+  currentSimInput.classList.add("form-control", "d-inline", "ms-1", "me-1");
+  currentSimInput.value = "1";
+  currentSimInput.min = "1";
+  currentSimInput.max = `${coopState.simulations.length}`;
+  currentSimInput.required = true;
+  currentSimInput.style.width = "100px";
 
   coopBottomButtons.classList.add(
     "position-sticky",
@@ -479,7 +453,8 @@ function endOfCoopSimulation(coopState) {
   <i class="fas fa-backward-fast"></i>
   `;
   roundBackbackBtn.addEventListener("click", () => {
-    renderRound(coopCurrentSimulation, 0);
+    currentRoundInput.value = 1;
+    currentRoundInput.dispatchEvent(new Event("input"));
   });
 
   const roundBackBtn = document.createElement("button");
@@ -488,10 +463,11 @@ function endOfCoopSimulation(coopState) {
   <i class="fas fa-backward-step"></i>
   `;
   roundBackBtn.addEventListener("click", () => {
-    renderRound(
-      coopCurrentSimulation,
-      coopCurrentRound === 1 ? coopCurrentRound : coopCurrentRound - 1
+    currentRoundInput.value = Math.max(
+      1,
+      parseInt(currentRoundInput.value) - 1
     );
+    currentRoundInput.dispatchEvent(new Event("input"));
   });
 
   const roundNextnextBtn = document.createElement("button");
@@ -500,11 +476,8 @@ function endOfCoopSimulation(coopState) {
   <i class="fas fa-forward-fast"></i>
   `;
   roundNextnextBtn.addEventListener("click", () => {
-    renderRound(
-      coopCurrentSimulation,
-      coopState.simulations[/* cambiar por variable coopCurrentSimulation */ 0]
-        .rondas.length
-    );
+    currentRoundInput.value = parseInt(currentRoundInput.max, 10);
+    currentRoundInput.dispatchEvent(new Event("input"));
   });
 
   const roundNextBtn = document.createElement("button");
@@ -513,15 +486,11 @@ function endOfCoopSimulation(coopState) {
     <i class="fas fa-forward-step"></i>
     `;
   roundNextBtn.addEventListener("click", () => {
-    renderRound(
-      coopCurrentSimulation,
-      coopCurrentRound ===
-        coopState
-          .simulations[/* cambiar por variable coopCurrentSimulation */ 0]
-          .rondas.length
-        ? coopCurrentRound
-        : coopCurrentRound + 1
+    currentRoundInput.value = Math.min(
+      parseInt(currentRoundInput.max, 10),
+      parseInt(currentRoundInput.value) + 1
     );
+    currentRoundInput.dispatchEvent(new Event("input"));
   });
 
   const currentRoundText = document.createElement("p");
@@ -530,17 +499,27 @@ function endOfCoopSimulation(coopState) {
 
   const totalRoundsText = document.createElement("p");
   totalRoundsText.classList.add("d-inline");
-  totalRoundsText.textContent = `de ${coopState.simulations[/* cambiar por variable coopCurrentSimulation */ 0].rondas.length}`;
+  totalRoundsText.textContent = `de ${
+    coopState.simulations[coopCurrentSimulation - 1].rondas.length
+  }`;
 
-  const currentRoundInput = document.createElement("input");
-  currentRoundInput.type = "number";
-  currentRoundInput.id = "coop_current_round";
-  currentRoundInput.classList.add("form-control", "d-inline", "ms-1", "me-1");
-  currentRoundInput.value = "1";
-  currentRoundInput.min = "1";
-  currentRoundInput.max = `${coopState.simulations[/* cambiar por variable coopCurrentSimulation */ 0].rondas.length}`;
-  currentRoundInput.required = true;
-  currentRoundInput.style.width = "100px";
+  currentRoundInput.addEventListener(
+    "input",
+    debounce((e) => {
+      const value = parseInt(e.target.value, 10);
+      const min = parseInt(e.target.min, 10);
+      const max = parseInt(e.target.max, 10);
+
+      if (isNaN(value) || value < min || value > max) {
+        alert(`La ronda debe ser un número entre ${min} y ${max}`);
+        e.target.value = coopCurrentRound;
+        return;
+      }
+      if (value === coopCurrentRound) return;
+      coopCurrentRound = value;
+      renderRound(coopCurrentSimulation, coopCurrentRound);
+    }, 1500)
+  );
 
   roundBackDiv.appendChild(roundBackbackBtn);
   roundBackDiv.appendChild(roundBackBtn);
@@ -559,7 +538,8 @@ function endOfCoopSimulation(coopState) {
   <i class="fas fa-backward-fast"></i>
   `;
   simBackbackBtn.addEventListener("click", () => {
-    renderRound(0, 0);
+    currentSimInput.value = 1;
+    currentSimInput.dispatchEvent(new Event("input"));
   });
 
   const simBackBtn = document.createElement("button");
@@ -568,12 +548,8 @@ function endOfCoopSimulation(coopState) {
   <i class="fas fa-backward-step"></i>
   `;
   simBackBtn.addEventListener("click", () => {
-    renderRound(
-      coopCurrentSimulation === 1
-        ? coopCurrentSimulation
-        : coopCurrentSimulation - 1,
-      0
-    );
+    currentSimInput.value = Math.max(1, parseInt(currentSimInput.value) - 1);
+    currentSimInput.dispatchEvent(new Event("input"));
   });
 
   const simNextnextBtn = document.createElement("button");
@@ -582,7 +558,8 @@ function endOfCoopSimulation(coopState) {
   <i class="fas fa-forward-fast"></i>
   `;
   simNextnextBtn.addEventListener("click", () => {
-    renderRound(coopState.simulations.length, 0);
+    currentSimInput.value = currentSimInput.max;
+    currentSimInput.dispatchEvent(new Event("input"));
   });
 
   const simNextBtn = document.createElement("button");
@@ -591,12 +568,11 @@ function endOfCoopSimulation(coopState) {
     <i class="fas fa-forward-step"></i>
     `;
   simNextBtn.addEventListener("click", () => {
-    renderRound(
-      coopCurrentSimulation === coopState.simulations.length
-        ? coopCurrentSimulation
-        : coopCurrentSimulation + 1,
-      0
+    currentSimInput.value = Math.min(
+      parseInt(currentSimInput.max),
+      parseInt(currentSimInput.value) + 1
     );
+    currentSimInput.dispatchEvent(new Event("input"));
   });
 
   const currentSimText = document.createElement("p");
@@ -607,15 +583,30 @@ function endOfCoopSimulation(coopState) {
   totalSimsText.classList.add("d-inline");
   totalSimsText.textContent = `de ${coopState.simulations.length}`;
 
-  const currentSimInput = document.createElement("input");
-  currentSimInput.type = "number";
-  currentSimInput.id = "coop_current_round";
-  currentSimInput.classList.add("form-control", "d-inline", "ms-1", "me-1");
-  currentSimInput.value = "1";
-  currentSimInput.min = "1";
-  currentSimInput.max = `${coopState.simulations.length}`;
-  currentSimInput.required = true;
-  currentSimInput.style.width = "100px";
+  currentSimInput.addEventListener(
+    "input",
+    debounce((e) => {
+      const value = parseInt(e.target.value, 10);
+      const min = parseInt(e.target.min, 10);
+      const max = parseInt(e.target.max, 10);
+
+      if (isNaN(value) || value < min || value > max) {
+        alert(`La simulación debe ser un número entre ${min} y ${max}`);
+        e.target.value = coopCurrentSimulation;
+        return;
+      }
+      if (value === coopCurrentSimulation) return;
+      coopCurrentSimulation = value;
+      coopCurrentRound = 1;
+      const newMaxRounds =
+        coopState.simulations[coopCurrentSimulation - 1].rondas.length;
+      currentRoundInput.max = newMaxRounds;
+      currentRoundInput.value = "1";
+      totalRoundsText.textContent = `de ${newMaxRounds}`;
+
+      renderRound(coopCurrentSimulation, coopCurrentRound);
+    }, 1500)
+  );
 
   simBackDiv.appendChild(simBackbackBtn);
   simBackDiv.appendChild(simBackBtn);
@@ -628,13 +619,27 @@ function endOfCoopSimulation(coopState) {
   simDiv.appendChild(simMiddleDiv);
   simDiv.appendChild(simNextDiv);
 
+  const goBackBtn = document.createElement("button");
+  goBackBtn.classList.add("btn", "btn-secondary");
+  goBackBtn.addEventListener("click", () => selectMode("cooperativo"));
+  goBackBtn.innerHTML = `<span><i class="fas fa-door-open"></i> Salir</span>`;
+
   coopBottomButtons.appendChild(roundDiv);
+  coopBottomButtons.appendChild(goBackBtn);
   coopBottomButtons.appendChild(simDiv);
   gameSection.appendChild(coopBottomButtons);
 }
 
 function renderRound(simulation, round) {
   console.log("Rendering round: ", simulation, round);
+}
+
+function debounce(func, delay = 1000) {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func.apply(null, args), delay);
+  };
 }
 
 window.addEventListener("DOMContentLoaded", () => {
