@@ -2,7 +2,8 @@ let coopConfig = {};
 let currentMode = null;
 let coopState = null;
 let coopCurrentSimulation = 1;
-let coopCurrentRound = 1;
+let porcentajeChart = null;
+let promedioChart = null;
 
 const gameModesContent = {
   cooperativo: () => loadCoop(),
@@ -290,24 +291,17 @@ function addPlayer(quantity = 1) {
     newPlayer.dataset.playerId = newId;
     newPlayer.innerHTML = `
     <span>
-      <button class="btn btn-sm editPlayer"><i class="fas fa-edit"></i></button>
       <button class="btn btn-sm delPlayer"><i class="fas fa-ban"></i></button>
     </span>
     <i class="fas fa-user fa-2x"></i>Bot ${newId}
     `;
     playersContainer.appendChild(newPlayer);
 
-    const editBtn = newPlayer.querySelector(".editPlayer");
     const deleteBtn = newPlayer.querySelector(".delPlayer");
-    editBtn.addEventListener("click", () => editCoopPlayer(newId));
     deleteBtn.addEventListener("click", () => deleteCoopPlayer(newId));
   }
 
   updatePlayerCount();
-}
-
-function editCoopPlayer(id) {
-  console.log(id);
 }
 
 function deleteCoopPlayer(id) {
@@ -375,20 +369,41 @@ function runCoopSimulation() {
 
     if (e.data.done) {
       loadingContainer.style.display = "none";
-      coopState.simulations = e.data.simulations.map((sim) => ({
-        ...sim,
-        final: sim.final.map((arr) => new Set(arr)),
-        rondas: sim.rondas.map((ronda) => ({
-          ...ronda,
-          estadoAlbums: ronda.estadoAlbums.map((arr) => new Set(arr)),
-        })),
-      }));
+
+      coopState.simulations = e.data.simulations;
+
+      const acumulados = {
+        sobresTotales: 0,
+        porcentajeLlenado: Array(coopConfig.numPlayers).fill(0),
+        jugadoresCompletos: Array(coopConfig.numPlayers).fill(0),
+      };
+
+      e.data.simulations.forEach((sim) => {
+        acumulados.sobresTotales += sim.sobresTotales;
+        sim.porcentajePorJugador.forEach((valor, idx) => {
+          acumulados.porcentajeLlenado[idx] += valor;
+        });
+        sim.completados.forEach((ok, idx) => {
+          acumulados.jugadoresCompletos[idx] += ok ? 1 : 0;
+        });
+      });
+
+      const n = e.data.simulations.length;
+      const promedioSobres = acumulados.sobresTotales / n;
+      const promedioLlenado = acumulados.porcentajeLlenado.map(
+        (suma) => suma / n
+      );
+      const porcentajeCompletos = acumulados.jugadoresCompletos.map(
+        (suma) => suma / n
+      );
+
+      // Mostrar en consola por ahora
+      console.log({ promedioSobres, promedioLlenado, porcentajeCompletos });
 
       coopCurrentSimulation = 1;
-      coopCurrentRound = 1;
 
       endOfCoopSimulation(coopState);
-      renderRound(coopCurrentSimulation, coopCurrentRound);
+      renderRound(coopCurrentSimulation);
 
       worker.terminate();
     }
@@ -401,26 +416,10 @@ function endOfCoopSimulation(coopState) {
   document.getElementById("coopSettingsBtn").style.display = "none";
 
   const coopBottomButtons = document.createElement("div");
-  const roundDiv = document.createElement("div");
-  const roundBackDiv = document.createElement("div");
-  const roundMiddleDiv = document.createElement("div");
-  const roundNextDiv = document.createElement("div");
   const simDiv = document.createElement("div");
   const simBackDiv = document.createElement("div");
   const simMiddleDiv = document.createElement("div");
   const simNextDiv = document.createElement("div");
-
-  const currentRoundInput = document.createElement("input");
-  currentRoundInput.type = "number";
-  currentRoundInput.id = "coop_current_round";
-  currentRoundInput.classList.add("form-control", "d-inline", "ms-1", "me-1");
-  currentRoundInput.value = "1";
-  currentRoundInput.min = "1";
-  currentRoundInput.max = `${
-    coopState.simulations[coopCurrentSimulation - 1].rondas.length
-  }`;
-  currentRoundInput.required = true;
-  currentRoundInput.style.width = "100px";
 
   const currentSimInput = document.createElement("input");
   currentSimInput.type = "number";
@@ -437,100 +436,13 @@ function endOfCoopSimulation(coopState) {
     "sticky-bottom",
     "d-flex",
     "flex-row",
-    "justify-content-around",
+    "justify-content-between",
     "align-items-center"
   );
   coopBottomButtons.style.zIndex = "2";
 
-  roundDiv.classList.add("d-flex", "flex-row");
   simDiv.classList.add("d-flex", "flex-row");
-  roundMiddleDiv.classList.add("ms-3", "me-3");
   simMiddleDiv.classList.add("ms-3", "me-3");
-
-  const roundBackbackBtn = document.createElement("button");
-  roundBackbackBtn.classList.add("btn", "btn-success", "me-1");
-  roundBackbackBtn.innerHTML = `
-  <i class="fas fa-backward-fast"></i>
-  `;
-  roundBackbackBtn.addEventListener("click", () => {
-    currentRoundInput.value = 1;
-    currentRoundInput.dispatchEvent(new Event("input"));
-  });
-
-  const roundBackBtn = document.createElement("button");
-  roundBackBtn.classList.add("btn", "btn-success");
-  roundBackBtn.innerHTML = `
-  <i class="fas fa-backward-step"></i>
-  `;
-  roundBackBtn.addEventListener("click", () => {
-    currentRoundInput.value = Math.max(
-      1,
-      parseInt(currentRoundInput.value) - 1
-    );
-    currentRoundInput.dispatchEvent(new Event("input"));
-  });
-
-  const roundNextnextBtn = document.createElement("button");
-  roundNextnextBtn.classList.add("btn", "btn-success");
-  roundNextnextBtn.innerHTML = `
-  <i class="fas fa-forward-fast"></i>
-  `;
-  roundNextnextBtn.addEventListener("click", () => {
-    currentRoundInput.value = parseInt(currentRoundInput.max, 10);
-    currentRoundInput.dispatchEvent(new Event("input"));
-  });
-
-  const roundNextBtn = document.createElement("button");
-  roundNextBtn.classList.add("btn", "btn-success", "me-1");
-  roundNextBtn.innerHTML = `
-    <i class="fas fa-forward-step"></i>
-    `;
-  roundNextBtn.addEventListener("click", () => {
-    currentRoundInput.value = Math.min(
-      parseInt(currentRoundInput.max, 10),
-      parseInt(currentRoundInput.value) + 1
-    );
-    currentRoundInput.dispatchEvent(new Event("input"));
-  });
-
-  const currentRoundText = document.createElement("p");
-  currentRoundText.classList.add("d-inline");
-  currentRoundText.textContent = "Ronda";
-
-  const totalRoundsText = document.createElement("p");
-  totalRoundsText.classList.add("d-inline");
-  totalRoundsText.textContent = `de ${
-    coopState.simulations[coopCurrentSimulation - 1].rondas.length
-  }`;
-
-  currentRoundInput.addEventListener(
-    "input",
-    debounce((e) => {
-      const value = parseInt(e.target.value, 10);
-      const min = parseInt(e.target.min, 10);
-      const max = parseInt(e.target.max, 10);
-
-      if (isNaN(value) || value < min || value > max) {
-        alert(`La ronda debe ser un número entre ${min} y ${max}`);
-        e.target.value = coopCurrentRound;
-        return;
-      }
-      if (value === coopCurrentRound) return;
-      coopCurrentRound = value;
-      renderRound(coopCurrentSimulation, coopCurrentRound);
-    }, 1500)
-  );
-
-  roundBackDiv.appendChild(roundBackbackBtn);
-  roundBackDiv.appendChild(roundBackBtn);
-  roundMiddleDiv.appendChild(currentRoundText);
-  roundMiddleDiv.appendChild(currentRoundInput);
-  roundMiddleDiv.appendChild(totalRoundsText);
-  roundNextDiv.appendChild(roundNextBtn);
-  roundNextDiv.appendChild(roundNextnextBtn);
-  roundDiv.appendChild(roundBackDiv);
-  roundDiv.appendChild(roundMiddleDiv);
-  roundDiv.appendChild(roundNextDiv);
 
   const simBackbackBtn = document.createElement("button");
   simBackbackBtn.classList.add("btn", "btn-success", "me-1");
@@ -597,14 +509,8 @@ function endOfCoopSimulation(coopState) {
       }
       if (value === coopCurrentSimulation) return;
       coopCurrentSimulation = value;
-      coopCurrentRound = 1;
-      const newMaxRounds =
-        coopState.simulations[coopCurrentSimulation - 1].rondas.length;
-      currentRoundInput.max = newMaxRounds;
-      currentRoundInput.value = "1";
-      totalRoundsText.textContent = `de ${newMaxRounds}`;
 
-      renderRound(coopCurrentSimulation, coopCurrentRound);
+      renderRound(coopCurrentSimulation);
     }, 1500)
   );
 
@@ -621,17 +527,104 @@ function endOfCoopSimulation(coopState) {
 
   const goBackBtn = document.createElement("button");
   goBackBtn.classList.add("btn", "btn-secondary");
-  goBackBtn.addEventListener("click", () => selectMode("cooperativo"));
-  goBackBtn.innerHTML = `<span><i class="fas fa-door-open"></i> Salir</span>`;
+  goBackBtn.addEventListener("click", () => {
+    document.getElementById("runSimDiv").style.display = "inline-block";
+    document.getElementById("coopSettingsBtn").style.display = "inline-block";
+    coopBottomButtons.remove();
+  });
+  goBackBtn.innerHTML = `<span><i class="fas fa-door-open"></i> Reiniciar</span>`;
 
-  coopBottomButtons.appendChild(roundDiv);
   coopBottomButtons.appendChild(goBackBtn);
   coopBottomButtons.appendChild(simDiv);
   gameSection.appendChild(coopBottomButtons);
 }
 
-function renderRound(simulation, round) {
-  console.log("Rendering round: ", simulation, round);
+function renderRound(simulation) {
+  const sim = coopState.simulations[simulation - 1];
+
+  const graphsContainer = document.getElementById("graphs");
+  graphsContainer.innerHTML = `
+    <div class="row">
+      <div class="col-md-6">
+        <h4>Current Simulation Results</h4>
+        <canvas id="chartPorcentajeLlenado"></canvas>
+      </div>
+      <div class="col-md-6">
+        <h4>Accumulated Average</h4>
+        <canvas id="chartAverageLlenado"></canvas>
+      </div>
+    </div>
+  `;
+
+  const ctx1 = document
+    .getElementById("chartPorcentajeLlenado")
+    .getContext("2d");
+  const data1 = {
+    labels: sim.porcentajePorJugador.map((_, i) => `Bot ${i + 1}`),
+    datasets: [
+      {
+        label: "Album completion",
+        data: sim.porcentajePorJugador.map((p) => Math.round(p * 100)),
+        backgroundColor: "rgba(54, 162, 235, 0.7)",
+        borderColor: "rgba(54, 162, 235, 1)",
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const ctx2 = document.getElementById("chartAverageLlenado").getContext("2d");
+
+  const accumulatedAverages = [];
+  for (let i = 0; i < coopConfig.numPlayers; i++) {
+    let sum = 0;
+    const averages = [];
+    for (let j = 0; j < simulation; j++) {
+      sum += coopState.simulations[j].porcentajePorJugador[i];
+      averages.push((sum / (j + 1)) * 100);
+    }
+    accumulatedAverages.push(averages[averages.length - 1]);
+  }
+
+  const data2 = {
+    labels: sim.porcentajePorJugador.map((_, i) => `Bot ${i + 1}`),
+    datasets: [
+      {
+        label: "Average completion",
+        data: accumulatedAverages.map((p) => Math.round(p)),
+        backgroundColor: "rgba(255, 99, 132, 0.7)",
+        borderColor: "rgba(255, 99, 132, 1)",
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: 100,
+        ticks: {
+          callback: (value) => `${value}%`,
+        },
+      },
+    },
+  };
+
+  if (porcentajeChart) porcentajeChart.destroy();
+  if (promedioChart) promedioChart.destroy();
+
+  porcentajeChart = new Chart(ctx1, {
+    type: "bar",
+    data: data1,
+    options,
+  });
+
+  promedioChart = new Chart(ctx2, {
+    type: "bar",
+    data: data2,
+    options,
+  });
 }
 
 function debounce(func, delay = 1000) {

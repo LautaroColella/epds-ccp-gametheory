@@ -16,44 +16,13 @@
     />
     <link rel="stylesheet" href="./style.css" />
   </head>
-  <body class="d-flex justify-content-center align-items-start vh-100 mt-4">
+  <body class="d-flex justify-content-center align-items-start vh-100">
     <!-- nav goes here -->
 
     <div class="w-100" style="max-width: 1200px; min-width: 700px">
-      <section id="game_mode">
-        <ul
-          class="d-flex justify-content-between border rounded-top border-bottom-0 mb-0 ps-0 pb-5"
-        >
-          <li class="list-unstyled">
-            <button
-              class="btn btn-info btn-lg"
-              onclick="selectMode('cooperativo')"
-            >
-              Cooperativo
-            </button>
-          </li>
-          <li class="list-unstyled">
-            <button
-              class="btn btn-danger btn-lg"
-              onclick="selectMode('competitivo')"
-            >
-              Competitivo
-            </button>
-          </li>
-          <li class="list-unstyled">
-            <button
-              class="btn btn-warning btn-lg"
-              onclick="selectMode('evolutivo')"
-            >
-              Evolutivo
-            </button>
-          </li>
-        </ul>
-      </section>
-
       <section
         id="game"
-        class="border rounded-bottom border-top-0 position-relative"
+        class="border rounded-bottom border-top-0 position-relative mt-4"
       ></section>
 
       <div
@@ -290,6 +259,7 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="./script.js"></script>
   </body>
 </html>

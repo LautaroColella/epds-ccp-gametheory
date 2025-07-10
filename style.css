@@ -64,10 +64,6 @@
 }
 
 .coopPlayer span button:nth-child(1) {
-	color: #ffc107;
-}
-
-.coopPlayer span button:nth-child(2) {
 	color: red;
 }
 
