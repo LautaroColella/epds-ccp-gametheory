@@ -4,6 +4,8 @@ let coopState = null;
 let coopCurrentSimulation = 1;
 let porcentajeChart = null;
 let promedioChart = null;
+let packetDistributionChart = null;
+let progressChart = null;
 
 const gameModesContent = {
   cooperativo: () => loadCoop(),
@@ -371,37 +373,7 @@ function runCoopSimulation() {
       loadingContainer.style.display = "none";
 
       coopState.simulations = e.data.simulations;
-
-      const acumulados = {
-        sobresTotales: 0,
-        porcentajeLlenado: Array(coopConfig.numPlayers).fill(0),
-        jugadoresCompletos: Array(coopConfig.numPlayers).fill(0),
-      };
-
-      e.data.simulations.forEach((sim) => {
-        acumulados.sobresTotales += sim.sobresTotales;
-        sim.porcentajePorJugador.forEach((valor, idx) => {
-          acumulados.porcentajeLlenado[idx] += valor;
-        });
-        sim.completados.forEach((ok, idx) => {
-          acumulados.jugadoresCompletos[idx] += ok ? 1 : 0;
-        });
-      });
-
-      const n = e.data.simulations.length;
-      const promedioSobres = acumulados.sobresTotales / n;
-      const promedioLlenado = acumulados.porcentajeLlenado.map(
-        (suma) => suma / n
-      );
-      const porcentajeCompletos = acumulados.jugadoresCompletos.map(
-        (suma) => suma / n
-      );
-
-      // Mostrar en consola por ahora
-      console.log({ promedioSobres, promedioLlenado, porcentajeCompletos });
-
       coopCurrentSimulation = 1;
-
       endOfCoopSimulation(coopState);
       renderRound(coopCurrentSimulation);
 
@@ -542,89 +514,296 @@ function endOfCoopSimulation(coopState) {
 function renderRound(simulation) {
   const sim = coopState.simulations[simulation - 1];
 
-  const graphsContainer = document.getElementById("graphs");
-  graphsContainer.innerHTML = `
-    <div class="row">
-      <div class="col-md-6">
-        <h4>Current Simulation Results</h4>
-        <canvas id="chartPorcentajeLlenado"></canvas>
-      </div>
-      <div class="col-md-6">
-        <h4>Accumulated Average</h4>
-        <canvas id="chartAverageLlenado"></canvas>
-      </div>
-    </div>
-  `;
+  // 1. Prepare all chart data first
+  const chartData = {
+    // Current simulation completion data
+    currentCompletion: {
+      labels: sim.porcentajePorJugador.map((_, i) => `Player ${i + 1}`),
+      data: sim.porcentajePorJugador.map((p) => Math.round(p * 100)),
+      backgroundColor: "rgba(54, 162, 235, 0.7)",
+      borderColor: "rgba(54, 162, 235, 1)",
+    },
 
-  const ctx1 = document
-    .getElementById("chartPorcentajeLlenado")
-    .getContext("2d");
-  const data1 = {
-    labels: sim.porcentajePorJugador.map((_, i) => `Bot ${i + 1}`),
-    datasets: [
-      {
-        label: "Album completion",
-        data: sim.porcentajePorJugador.map((p) => Math.round(p * 100)),
-        backgroundColor: "rgba(54, 162, 235, 0.7)",
-        borderColor: "rgba(54, 162, 235, 1)",
-        borderWidth: 1,
-      },
-    ],
-  };
+    // Average completion data
+    averageCompletion: {
+      labels: Array(coopConfig.numPlayers)
+        .fill()
+        .map((_, i) => `Player ${i + 1}`),
+      data: calculateAccumulatedAverages(simulation),
+      backgroundColor: "rgba(255, 99, 132, 0.7)",
+      borderColor: "rgba(255, 99, 132, 1)",
+    },
 
-  const ctx2 = document.getElementById("chartAverageLlenado").getContext("2d");
+    // Packet distribution data
+    packetDistribution: {
+      labels: sim.packetsPerPlayer.map((_, i) => `Player ${i + 1}`),
+      data: sim.packetsPerPlayer,
+      backgroundColor: "rgba(75, 192, 192, 0.7)",
+      borderColor: "rgba(75, 192, 192, 1)",
+    },
 
-  const accumulatedAverages = [];
-  for (let i = 0; i < coopConfig.numPlayers; i++) {
-    let sum = 0;
-    const averages = [];
-    for (let j = 0; j < simulation; j++) {
-      sum += coopState.simulations[j].porcentajePorJugador[i];
-      averages.push((sum / (j + 1)) * 100);
-    }
-    accumulatedAverages.push(averages[averages.length - 1]);
-  }
-
-  const data2 = {
-    labels: sim.porcentajePorJugador.map((_, i) => `Bot ${i + 1}`),
-    datasets: [
-      {
-        label: "Average completion",
-        data: accumulatedAverages.map((p) => Math.round(p)),
-        backgroundColor: "rgba(255, 99, 132, 0.7)",
-        borderColor: "rgba(255, 99, 132, 1)",
-        borderWidth: 1,
-      },
-    ],
-  };
-
-  const options = {
-    responsive: true,
-    scales: {
-      y: {
-        beginAtZero: true,
-        max: 100,
-        ticks: {
-          callback: (value) => `${value}%`,
-        },
-      },
+    // Progress charts data
+    progressCharts: {
+      current: prepareCurrentProgressData(sim),
+      average: prepareAverageProgressData(simulation),
     },
   };
 
-  if (porcentajeChart) porcentajeChart.destroy();
-  if (promedioChart) promedioChart.destroy();
+  // 2. Set up HTML structure
+  setupChartsHTML();
 
-  porcentajeChart = new Chart(ctx1, {
-    type: "bar",
-    data: data1,
-    options,
-  });
+  // 3. Render all charts
+  renderAllCharts(chartData);
 
-  promedioChart = new Chart(ctx2, {
-    type: "bar",
-    data: data2,
-    options,
-  });
+  function calculateAccumulatedAverages(simulation) {
+    const averages = [];
+    for (let i = 0; i < coopConfig.numPlayers; i++) {
+      let sum = 0;
+      for (let j = 0; j < simulation; j++) {
+        sum += coopState.simulations[j].porcentajePorJugador[i];
+      }
+      averages.push(Math.round((sum / simulation) * 100));
+    }
+    return averages;
+  }
+
+  function prepareCurrentProgressData(sim) {
+    const progress = [...sim.progressHistory];
+    progress.push({
+      percent: Math.round(
+        (sim.porcentajePorJugador.reduce((a, b) => a + b, 0) /
+          (coopConfig.numPlayers * 100)) *
+          100
+      ),
+      packets: sim.sobresTotales,
+      completion: sim.porcentajePorJugador,
+    });
+
+    return progress
+      .map((entry) => ({
+        packets: entry.packets,
+        completion:
+          (entry.completion.reduce((a, b) => a + b, 0) /
+            entry.completion.length) *
+          100,
+      }))
+      .sort((a, b) => a.packets - b.packets);
+  }
+
+  function prepareAverageProgressData(simulation) {
+    const progressData = {};
+
+    for (let i = 0; i < simulation; i++) {
+      const sim = coopState.simulations[i];
+      const finalEntry = {
+        percent: Math.round(
+          (sim.porcentajePorJugador.reduce((a, b) => a + b, 0) /
+            (coopConfig.numPlayers * 100)) *
+            100
+        ),
+        packets: sim.sobresTotales,
+        completion: sim.porcentajePorJugador,
+      };
+      const allEntries = [...sim.progressHistory, finalEntry];
+
+      allEntries.forEach((entry) => {
+        const percent = Math.min(100, Math.round(entry.percent));
+        if (!progressData[percent]) {
+          progressData[percent] = {
+            totalCompletion: 0,
+            totalPackets: 0,
+            count: 0,
+          };
+        }
+        const avgCompletion =
+          entry.completion.reduce((sum, p) => sum + p, 0) /
+          entry.completion.length;
+        progressData[percent].totalCompletion += avgCompletion;
+        progressData[percent].totalPackets += entry.packets;
+        progressData[percent].count++;
+      });
+    }
+
+    return Object.entries(progressData)
+      .map(([percent, data]) => ({
+        avgPackets: Math.round(data.totalPackets / data.count),
+        avgCompletion: (data.totalCompletion / data.count) * 100,
+      }))
+      .sort((a, b) => a.avgPackets - b.avgPackets);
+  }
+
+  function setupChartsHTML() {
+    document.getElementById("graphs").innerHTML = `
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">Current Simulation: Album Completion</div>
+          <div class="card-body">
+            <canvas id="chartPorcentajeLlenado"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">Average Completion</div>
+          <div class="card-body">
+            <canvas id="chartAverageLlenado"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">Current Simulation: Packets Used</div>
+          <div class="card-body">
+            <canvas id="chartPacketDistribution"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">Current Simulation Progress</div>
+          <div class="card-body">
+            <canvas id="currentProgressChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row mt-3">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">Cumulative Average Progress</div>
+          <div class="card-body">
+            <canvas id="avgProgressChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  }
+
+  function renderAllCharts(chartData) {
+    // Destroy old charts if they exist
+    [
+      porcentajeChart,
+      promedioChart,
+      packetDistributionChart,
+      progressChart,
+    ].forEach((chart) => chart && chart.destroy());
+
+    // Chart 1: Current simulation completion
+    porcentajeChart = createBarChart(
+      "chartPorcentajeLlenado",
+      chartData.currentCompletion,
+      { yMax: 100, yCallback: (v) => `${v}%` }
+    );
+
+    // Chart 2: Average completion
+    promedioChart = createBarChart(
+      "chartAverageLlenado",
+      chartData.averageCompletion,
+      { yMax: 100, yCallback: (v) => `${v}%` }
+    );
+
+    // Chart 3: Packet distribution
+    packetDistributionChart = createBarChart(
+      "chartPacketDistribution",
+      chartData.packetDistribution,
+      {}
+    );
+
+    // Chart 4: Current progress
+    createLineChart(
+      "currentProgressChart",
+      chartData.progressCharts.current,
+      "Completion %",
+      "rgb(75, 192, 192)",
+      coopConfig.limitPackets
+    );
+
+    // Chart 5: Average progress
+    createLineChart(
+      "avgProgressChart",
+      chartData.progressCharts.average,
+      "Avg Completion %",
+      "rgb(153, 102, 255)",
+      coopConfig.limitPackets
+    );
+  }
+
+  function createBarChart(
+    canvasId,
+    { labels, data, backgroundColor, borderColor },
+    options = {}
+  ) {
+    return new Chart(document.getElementById(canvasId).getContext("2d"), {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: options.label || "",
+            data,
+            backgroundColor,
+            borderColor,
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: options.yMax,
+            ticks: { callback: options.yCallback },
+          },
+        },
+      },
+    });
+  }
+
+  function createLineChart(canvasId, data, label, borderColor, packetLimit) {
+    return new Chart(document.getElementById(canvasId).getContext("2d"), {
+      type: "line",
+      data: {
+        labels: data.map((d) => d.packets || d.avgPackets),
+        datasets: [
+          {
+            label,
+            data: data.map((d) => d.completion || d.avgCompletion),
+            borderColor,
+            borderWidth: 2,
+            tension: 0.1,
+            pointRadius: 3,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            min: 0,
+            max: 100,
+            ticks: { callback: (v) => `${v}%` },
+          },
+          x: {
+            min: 0,
+            max: packetLimit * 1.05,
+          },
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (ctx) =>
+                `${ctx.parsed.y.toFixed(1)}% at ${ctx.parsed.x} packets`,
+            },
+          },
+        },
+      },
+    });
+  }
 }
 
 function debounce(func, delay = 1000) {
