@@ -47,7 +47,7 @@ function loadCoop() {
   gameSection.appendChild(playersContainer);
 
   const newPlayerBtn = document.createElement("button");
-  newPlayerBtn.classList.add("btnAddPlayer");
+  newPlayerBtn.classList.add("btnAddPlayer", "d-block");
   newPlayerBtn.addEventListener("click", () => addPlayer());
   newPlayerBtn.innerHTML = `<span><i class="fas fa-plus fa-2x"></i><i class="fas fa-user fa-2x"></i></span>`;
   playersContainer.appendChild(newPlayerBtn);
@@ -251,7 +251,7 @@ function updateCoopSettings() {
   playersContainer.innerHTML = "";
 
   const newPlayerBtn = document.createElement("button");
-  newPlayerBtn.classList.add("btnAddPlayer");
+  newPlayerBtn.classList.add("btnAddPlayer", "d-block");
   newPlayerBtn.addEventListener("click", () => addPlayer());
   newPlayerBtn.innerHTML = `<span><i class="fas fa-plus fa-2x"></i><i class="fas fa-user fa-2x"></i></span>`;
   playersContainer.appendChild(newPlayerBtn);
@@ -306,7 +306,7 @@ function addPlayer(quantity = 1) {
     newPlayer.dataset.playerId = newId;
     newPlayer.innerHTML = `
     <span>
-      <button class="btn btn-sm delPlayer"><i class="fas fa-ban"></i></button>
+      <button class="btn btn-sm delPlayer d-block"><i class="fas fa-ban"></i></button>
     </span>
     <i class="fas fa-user fa-2x"></i>Bot ${newId}
     `;
@@ -348,6 +348,13 @@ function runCoopSimulation() {
     simulations: [],
     ended: false,
   };
+
+  document.querySelector(".btnAddPlayer").classList.remove("d-block");
+  document.querySelector(".btnAddPlayer").classList.add("d-none");
+  document.querySelectorAll(".delPlayer").forEach((delButton) => {
+    delButton.classList.remove("d-block");
+    delButton.classList.add("d-none");
+  });
 
   let loadingContainer = document.getElementById("loadingBarContainer");
   if (!loadingContainer) {
@@ -514,6 +521,12 @@ function endOfCoopSimulation(coopState) {
   goBackBtn.addEventListener("click", () => {
     document.getElementById("bottomGameButtons").classList.remove("d-none");
     document.getElementById("bottomGameButtons").classList.add("d-flex");
+    document.querySelector(".btnAddPlayer").classList.remove("d-none");
+    document.querySelector(".btnAddPlayer").classList.add("d-block");
+    document.querySelectorAll(".delPlayer").forEach((delButton) => {
+      delButton.classList.remove("d-none");
+      delButton.classList.add("d-block");
+    });
     coopBottomButtons.remove();
   });
   goBackBtn.innerHTML = `<span><i class="fas fa-door-open"></i> Reiniciar</span>`;
