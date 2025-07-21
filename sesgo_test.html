@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sesgo de Cartas - Pie Interactivo</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 2rem;
+        background: #f8f9fa;
+      }
+      .form-row {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+      input[type="number"] {
+        width: 80px;
+        padding: 0.3rem;
+      }
+      button {
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+      }
+      #remaining {
+        font-weight: bold;
+        margin-top: 1rem;
+      }
+      .segment-list {
+        margin-top: 1rem;
+      }
+      .segment-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 0.3rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Editor de Sesgos de Figuritas</h1>
+
+    <div class="form-row">
+      <label
+        >% de cartas:
+        <input type="number" id="percent" min="1" max="100" />
+      </label>
+      <label
+        >% probabilidad:
+        <input type="number" id="probability" min="1" max="100" />
+      </label>
+      <button onclick="addSegment()">Agregar</button>
+    </div>
+
+    <canvas id="biasChart" width="400" height="400"></canvas>
+    <p id="remaining">Total asignado: 0% / 100%</p>
+
+    <div class="segment-list" id="segmentList"></div>
+
+    <script>
+      const ctx = document.getElementById("biasChart").getContext("2d");
+
+      const data = {
+        labels: [],
+        datasets: [
+          {
+            data: [],
+            backgroundColor: [],
+          },
+        ],
+      };
+
+      const biasChart = new Chart(ctx, {
+        type: "pie",
+        data,
+        options: {
+          responsive: false,
+          plugins: {
+            legend: {
+              position: "bottom",
+            },
+          },
+        },
+      });
+
+      const colors = [
+        "#4dc9f6",
+        "#f67019",
+        "#f53794",
+        "#537bc4",
+        "#acc236",
+        "#166a8f",
+        "#00a950",
+        "#58595b",
+        "#8549ba",
+      ];
+
+      let totalAssigned = 0;
+      let segmentId = 0;
+      let biasData = []; // <-- este array contiene los objetos que vas a usar
+
+      function addSegment() {
+        const percent = parseFloat(document.getElementById("percent").value);
+        const probability = parseFloat(
+          document.getElementById("probability").value
+        );
+
+        if (
+          isNaN(percent) ||
+          isNaN(probability) ||
+          percent <= 0 ||
+          probability <= 0
+        ) {
+          alert("Por favor ingresa números válidos mayores a 0.");
+          return;
+        }
+
+        if (totalAssigned + percent > 100) {
+          alert("No puedes superar el 100% de cartas asignadas.");
+          return;
+        }
+
+        const color = colors[segmentId % colors.length];
+        const label = `${percent}% de cartas → ${probability}% probabilidad`;
+
+        data.labels.push(label);
+        data.datasets[0].data.push(percent);
+        data.datasets[0].backgroundColor.push(color);
+        totalAssigned += percent;
+        biasChart.update();
+
+        const id = segmentId++;
+        const segmentList = document.getElementById("segmentList");
+
+        biasData.push({
+          id,
+          percentCards: percent,
+          probability,
+        });
+
+        const div = document.createElement("div");
+        div.classList.add("segment-item");
+        div.id = `segment-${id}`;
+        div.innerHTML = `
+        <span style="color:${color}">●</span>
+        ${label}
+        <button onclick="removeSegment(${id})">Eliminar</button>
+      `;
+        segmentList.appendChild(div);
+
+        document.getElementById(
+          "remaining"
+        ).textContent = `Total asignado: ${totalAssigned}% / 100%`;
+
+        // Reset inputs
+        document.getElementById("percent").value = "";
+        document.getElementById("probability").value = "";
+      }
+
+      function removeSegment(id) {
+        const labelIndex = id;
+
+        const percent = data.datasets[0].data[labelIndex];
+        totalAssigned -= percent;
+
+        data.labels.splice(labelIndex, 1);
+        data.datasets[0].data.splice(labelIndex, 1);
+        data.datasets[0].backgroundColor.splice(labelIndex, 1);
+
+        // Eliminar visual
+        document.getElementById(`segment-${id}`).remove();
+
+        // Actualizar gráfico
+        biasChart.update();
+        biasData = biasData.filter((item) => item.id !== id);
+
+        // Recalcular el texto
+        document.getElementById(
+          "remaining"
+        ).textContent = `Total asignado: ${totalAssigned}% / 100%`;
+      }
+
+      function getBiasArray() {
+        return biasData.map(({ percentCards, probability }) => ({
+          percentCards,
+          probability,
+        }));
+      }
+    </script>
+  </body>
+</html>
