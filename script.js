@@ -54,23 +54,26 @@ function loadCoop() {
 
   addPlayer(2);
 
-  const settingsBtn = document.createElement("button");
-  settingsBtn.classList.add(
-    "btn",
-    "btn-secondary",
+  const bottomGameButtons = document.createElement("div");
+  bottomGameButtons.classList.add(
+    "d-flex",
+    "justify-content-between",
     "position-sticky",
     "sticky-bottom"
   );
+  bottomGameButtons.width = "100%";
+  bottomGameButtons.id = "bottomGameButtons";
+
+  const settingsBtn = document.createElement("button");
+  settingsBtn.classList.add("btn", "btn-secondary");
   settingsBtn.innerHTML = `
     <i class="fas fa-gear"></i>
   `;
   settingsBtn.setAttribute("data-bs-toggle", "modal");
   settingsBtn.setAttribute("data-bs-target", "#coopSettingsModal");
   settingsBtn.style.zIndex = "2";
-  settingsBtn.id = "coopSettingsBtn";
   settingsBtn.addEventListener("click", () => setLastCoopSettings());
 
-  gameSection.appendChild(settingsBtn);
   document.getElementById("saveCoopSettings").addEventListener("click", () => {
     if (!updateCoopSettings()) return;
     const modalEl = document.getElementById("coopSettingsModal");
@@ -79,22 +82,29 @@ function loadCoop() {
   });
 
   const runSimDiv = document.createElement("div");
-  runSimDiv.classList.add("position-sticky", "sticky-bottom");
+  runSimDiv.classList.add("d-flex");
   runSimDiv.style.zIndex = "2";
-  runSimDiv.style.left = "100%";
-  runSimDiv.style.display = "inline-block";
-  runSimDiv.id = "runSimDiv";
+
+  const simCountTooltip = document.createElement("i");
+  simCountTooltip.classList.add(
+    "fas",
+    "fa-question-circle",
+    "text-muted",
+    "mt-2",
+    "me-1"
+  );
+  simCountTooltip.setAttribute("data-bs-toggle", "tooltip");
+  simCountTooltip.title = "Número de simulaciones";
 
   const simCountInput = document.createElement("input");
   simCountInput.type = "number";
   simCountInput.id = "simulation_count";
-  simCountInput.classList.add("form-control", "position-absolute", "d-inline");
+  simCountInput.classList.add("form-control", "d-inline");
   simCountInput.value = "1";
   simCountInput.min = "1";
   simCountInput.max = "1000";
   simCountInput.required = true;
   simCountInput.style.width = "100px";
-  simCountInput.style.right = "38px";
 
   const startBtn = document.createElement("button");
   startBtn.classList.add("btn", "btn-success");
@@ -105,9 +115,12 @@ function loadCoop() {
     if (!updateCoopSettings()) return;
     runCoopSimulation();
   });
+  runSimDiv.appendChild(simCountTooltip);
   runSimDiv.appendChild(simCountInput);
   runSimDiv.appendChild(startBtn);
-  gameSection.appendChild(runSimDiv);
+  bottomGameButtons.appendChild(settingsBtn);
+  bottomGameButtons.appendChild(runSimDiv);
+  gameSection.appendChild(bottomGameButtons);
 
   resetCoopSettings();
 }
@@ -384,8 +397,7 @@ function runCoopSimulation() {
 
 function endOfCoopSimulation(coopState) {
   const gameSection = document.getElementById("game");
-  document.getElementById("runSimDiv").style.display = "none";
-  document.getElementById("coopSettingsBtn").style.display = "none";
+  document.getElementById("bottomGameButtons").classList.add("d-none");
 
   const coopBottomButtons = document.createElement("div");
   const simDiv = document.createElement("div");
@@ -500,8 +512,8 @@ function endOfCoopSimulation(coopState) {
   const goBackBtn = document.createElement("button");
   goBackBtn.classList.add("btn", "btn-secondary");
   goBackBtn.addEventListener("click", () => {
-    document.getElementById("runSimDiv").style.display = "inline-block";
-    document.getElementById("coopSettingsBtn").style.display = "inline-block";
+    document.getElementById("bottomGameButtons").classList.remove("d-none");
+    document.getElementById("bottomGameButtons").classList.add("d-flex");
     coopBottomButtons.remove();
   });
   goBackBtn.innerHTML = `<span><i class="fas fa-door-open"></i> Reiniciar</span>`;
