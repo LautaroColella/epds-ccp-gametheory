@@ -131,26 +131,15 @@ function resetCoopSettings() {
   document.getElementById("cards_in_packet").value = 5;
   document.getElementById("cards_distribution").value = "uniforme";
   document.getElementById("cards_asignation").value = "optima";
-  document.getElementById("auto_simulation").checked = false;
-  document.getElementById("auto_simulation_ms").value = 500;
   document.getElementById("game_ends").value = "llena_album";
   document.getElementById("limit_packets").value = 1000;
   document.getElementById("simulation_seed").value = 0;
 
-  const autoSpeedContainer = document.getElementById(
-    "auto_simulation_speed_container"
-  );
   const limitPacketsContainer = document.getElementById(
     "limit_packets_container"
   );
 
-  if (autoSpeedContainer) autoSpeedContainer.classList.add("d-none");
   if (limitPacketsContainer) limitPacketsContainer.classList.add("d-none");
-
-  const autoCheckbox = document.getElementById("auto_simulation");
-  autoCheckbox.addEventListener("change", () => {
-    autoSpeedContainer.classList.toggle("d-none", !autoCheckbox.checked);
-  });
 
   const gameEndsSelect = document.getElementById("game_ends");
   gameEndsSelect.addEventListener("change", () => {
@@ -170,11 +159,6 @@ function updateCoopSettings() {
   );
   const cardsDistribution = document.getElementById("cards_distribution").value;
   const cardsAsignation = document.getElementById("cards_asignation").value;
-  const autoSimulation = document.getElementById("auto_simulation").checked;
-  const autoSimulationMs = parseInt(
-    document.getElementById("auto_simulation_ms").value,
-    10
-  );
   const gameEnds = document.getElementById("game_ends").value;
   const limitPackets = parseInt(
     document.getElementById("limit_packets").value,
@@ -210,13 +194,6 @@ function updateCoopSettings() {
     return false;
   }
 
-  if (autoSimulation && (isNaN(autoSimulationMs) || autoSimulationMs < 0)) {
-    alert(
-      "La velocidad de simulación debe ser un número entero mayor o igual a 0."
-    );
-    return false;
-  }
-
   if (
     gameEnds === "limite_sobres" &&
     (isNaN(limitPackets) || limitPackets <= 0)
@@ -236,8 +213,6 @@ function updateCoopSettings() {
     cardsInPacket,
     cardsDistribution,
     cardsAsignation,
-    autoSimulation,
-    autoSimulationMs: autoSimulation ? autoSimulationMs : null,
     gameEnds,
     limitPackets: gameEnds === "limite_sobres" ? limitPackets : null,
     simulationSeed: seedVal === 0 ? null : seedVal,
@@ -271,18 +246,11 @@ function setLastCoopSettings() {
     coopConfig.cardsDistribution;
   document.getElementById("cards_asignation").value =
     coopConfig.cardsAsignation;
-  document.getElementById("auto_simulation").checked =
-    coopConfig.autoSimulation;
-  document.getElementById("auto_simulation_ms").value =
-    coopConfig.autoSimulationMs;
   document.getElementById("game_ends").value = coopConfig.gameEnds;
   document.getElementById("limit_packets").value = coopConfig.limitPackets;
   document.getElementById("simulation_seed").value =
     coopConfig.simulationSeed ?? 0;
 
-  document
-    .getElementById("auto_simulation_speed_container")
-    .classList.toggle("d-none", !coopConfig.autoSimulation);
   document
     .getElementById("limit_packets_container")
     .classList.toggle("d-none", coopConfig.gameEnds !== "limite_sobres");
