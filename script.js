@@ -324,6 +324,10 @@ function deleteCoopPlayer(id) {
     `.coopPlayer[data-player-id="${id}"]`
   );
   if (playerElement) {
+    if (coopConfig.numPlayers === 2) {
+      alert("Debe haber un mínimo de 2 jugadores para la simulación.");
+      return;
+    }
     playerElement.remove();
     updatePlayerCount();
   }
